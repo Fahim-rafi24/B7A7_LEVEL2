@@ -50,6 +50,43 @@ export interface ComplaintTimeline {
     createdAt: string;
 }
 
+export type FeedbackModerationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface CitizenFeedbackItem {
+    id: string;
+    citizenName: string;
+    citizenEmail?: string;
+    avatarUrl?: string;
+    rating: number;
+    comment: string;
+    category: string;
+    complaintTrackingNumber?: string;
+    status: FeedbackModerationStatus;
+    submittedAt: string;
+    moderatedAt?: string;
+    moderatedBy?: string;
+    isFeatured?: boolean;
+}
+
+export type ContactCheckedStatus = 'UNCHECKED' | 'CHECKED_BY_ME' | 'CHECKED_BY_OTHER';
+
+export interface ContactInquiry {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    subject: string;
+    message: string;
+    createdAt: string;
+    status: ContactCheckedStatus;
+    checkedByAdminName?: string;
+    checkedByAdminEmail?: string;
+    checkedAt?: string;
+    isReplied?: boolean;
+    replyMessage?: string;
+    repliedAt?: string;
+}
+
 export interface Feedback {
     id: string;
     complaintId: string;

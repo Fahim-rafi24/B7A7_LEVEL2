@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Phone, Mail, MapPin, Clock, Send, Sparkles, HelpCircle, ChevronDown } from 'lucide-react';
+import Link from 'next/link';
+import { Phone, Mail, MapPin, Clock, Send, Sparkles, HelpCircle, ChevronDown, Shield, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth-context';
 
 export default function ContactPage() {
+    const { user } = useAuth();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [subject, setSubject] = useState('');
@@ -42,9 +45,35 @@ export default function ContactPage() {
     ];
 
     return (
-        <div className="container-custom py-12 space-y-16">
+        <div className="container-custom py-12 space-y-12">
+            {/* Admin Desk Shortcut Bar */}
+            {user?.role === 'ADMIN' && (
+                <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-800 flex items-center justify-center font-bold shrink-0">
+                            <Shield className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-indigo-900">
+                                Administrator Inquiry Desk Active
+                            </p>
+                            <p className="text-[11px] text-indigo-700">
+                                View all incoming citizen inquiries in the admin table with #d9933f / #5257e3 status tracking.
+                            </p>
+                        </div>
+                    </div>
+                    <Link
+                        href="/admin/contact"
+                        className="btn-primary text-xs px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 shrink-0"
+                    >
+                        <span>Open Admin Contact Table</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                </div>
+            )}
+
             {/* Header */}
-            <div className="text-center max-w-2xl mx-auto space-y-3 mt-8">
+            <div className="text-center max-w-2xl mx-auto space-y-3 mt-4">
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
                     <Sparkles className="w-3.5 h-3.5" />
                     24/7 Municipal Support

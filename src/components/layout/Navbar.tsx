@@ -202,13 +202,29 @@ export function Navbar() {
                                             </Link>
                                         )}
                                         {user.role === 'ADMIN' && (
-                                            <Link
-                                                href="/admin"
-                                                className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 rounded-xl hover:bg-purple-50 hover:text-purple-700 transition"
-                                            >
-                                                <Shield className="w-4 h-4 text-purple-600" />
-                                                <span>Admin Console</span>
-                                            </Link>
+                                            <>
+                                                <Link
+                                                    href="/admin"
+                                                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 rounded-xl hover:bg-purple-50 hover:text-purple-700 transition"
+                                                >
+                                                    <Shield className="w-4 h-4 text-purple-600" />
+                                                    <span>Admin Console</span>
+                                                </Link>
+                                                <Link
+                                                    href="/admin/feedback"
+                                                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-amber-700 rounded-xl hover:bg-amber-50 transition"
+                                                >
+                                                    <Sparkles className="w-4 h-4 text-amber-500" />
+                                                    <span>Feedback Approval Layer</span>
+                                                </Link>
+                                                <Link
+                                                    href="/admin/contact"
+                                                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-indigo-700 rounded-xl hover:bg-indigo-50 transition"
+                                                >
+                                                    <MessageSquare className="w-4 h-4 text-indigo-600" />
+                                                    <span>Contact Desk Messages</span>
+                                                </Link>
+                                            </>
                                         )}
                                     </>
                                 )}

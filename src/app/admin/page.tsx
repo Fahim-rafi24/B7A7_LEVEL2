@@ -67,6 +67,14 @@ export default function AdminOverviewPage() {
                         <FileText className="w-4 h-4" />
                         <span>Manage Complaints</span>
                     </Link>
+                    <Link href="/admin/feedback" className="btn-secondary text-xs px-4 py-2.5 text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200">
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                        <span>Feedback Approval</span>
+                    </Link>
+                    <Link href="/admin/contact" className="btn-secondary text-xs px-4 py-2.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200">
+                        <Users className="w-4 h-4 text-indigo-600" />
+                        <span>Contact Desk</span>
+                    </Link>
                     <Link href="/admin/users" className="btn-secondary text-xs px-4 py-2.5">
                         <Users className="w-4 h-4" />
                         <span>Users</span>
@@ -141,7 +149,53 @@ export default function AdminOverviewPage() {
             </div>
 
             {/* Quick Admin Action Tiles */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Link
+                    href="/admin/feedback"
+                    className="card p-5 hover:border-amber-400 transition flex items-center justify-between group bg-gradient-to-r from-white to-amber-50/30"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold group-hover:scale-110 transition">
+                            <Sparkles className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-1.5">
+                                <h4 className="text-xs font-bold text-slate-900 group-hover:text-amber-800">
+                                    Citizen Feedback Approval
+                                </h4>
+                                <span className="text-[9px] font-bold uppercase bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded">
+                                    Moderation
+                                </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500">Review & approve public comments</p>
+                        </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-amber-600 transition" />
+                </Link>
+
+                <Link
+                    href="/admin/contact"
+                    className="card p-5 hover:border-indigo-400 transition flex items-center justify-between group bg-gradient-to-r from-white to-indigo-50/30"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold group-hover:scale-110 transition">
+                            <Users className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-1.5">
+                                <h4 className="text-xs font-bold text-slate-900 group-hover:text-indigo-800">
+                                    Citizen Contact Messages
+                                </h4>
+                                <span className="text-[9px] font-bold uppercase bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded">
+                                    Support
+                                </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500">Inquiry desk (#d9933f / #5257e3)</p>
+                        </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 transition" />
+                </Link>
+
                 <Link
                     href="/admin/manage"
                     className="card p-5 hover:border-purple-300 transition flex items-center justify-between group"
