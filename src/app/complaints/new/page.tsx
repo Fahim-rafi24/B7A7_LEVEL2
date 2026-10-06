@@ -1,6 +1,6 @@
 'use client';
 
-
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { ComplaintWizardForm } from '@/components/forms/ComplaintWizardForm';
 import { ArrowLeft, Sparkles, Building2 } from 'lucide-react';
@@ -29,7 +29,16 @@ export default function NewComplaintPage() {
                 </p>
             </div>
 
-            <ComplaintWizardForm />
+            <Suspense
+                fallback={
+                    <div className="card p-12 text-center max-w-2xl mx-auto border-slate-200">
+                        <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                        <p className="text-xs text-slate-500 font-medium">Loading issue wizard...</p>
+                    </div>
+                }
+            >
+                <ComplaintWizardForm />
+            </Suspense>
         </div>
     );
 }

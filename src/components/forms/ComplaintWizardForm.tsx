@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -31,13 +31,30 @@ const complaintWizardSchema = z.object({
 
 type ComplaintFormData = z.infer<typeof complaintWizardSchema>;
 
+// Helper to normalize category from query param (e.g. 'Water', 'WATER', 'Water & Sanitation')
+const normalizeCategory = (cat?: string | null): string => {
+    if (!cat) return 'Road';
+    const lower = cat.toLowerCase().trim();
+    if (lower.startsWith('water') || lower.includes('sanitation')) return 'Water';
+    if (lower.startsWith('elec') || lower.includes('power')) return 'Electricity';
+    if (lower.startsWith('waste') || lower.startsWith('trash') || lower.includes('garbage')) return 'Waste';
+    if (lower.startsWith('safe') || lower.includes('public safety')) return 'Public Safety';
+    if (lower.startsWith('park') || lower.includes('rec') || lower.includes('trees')) return 'Parks';
+    if (lower.startsWith('road') || lower.includes('transport')) return 'Road';
+    return 'Road';
+};
+
 export function ComplaintWizardForm() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const queryCategory = searchParams?.get('category');
     const { isAuthenticated, user } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const initialCategory = normalizeCategory(queryCategory);
 
     const {
         register,
@@ -50,13 +67,21 @@ export function ComplaintWizardForm() {
         resolver: zodResolver(complaintWizardSchema),
         defaultValues: {
             title: '',
-            category: 'Road',
+            category: initialCategory,
             location: '',
             description: '',
             priority: 'MEDIUM',
             isPremiumService: false,
         },
     });
+
+    // Synchronize category if query parameter changes
+    useEffect(() => {
+        if (queryCategory) {
+            const matched = normalizeCategory(queryCategory);
+            setValue('category', matched);
+        }
+    }, [queryCategory, setValue]);
 
     const values = watch();
 

@@ -20,6 +20,7 @@ export default function ServicesPage() {
         {
             title: 'Road & Transport',
             code: 'ROAD',
+            categoryId: 'Road',
             icon: Car,
             color: 'text-purple-600 bg-purple-50 border-purple-200',
             description:
@@ -30,6 +31,7 @@ export default function ServicesPage() {
         {
             title: 'Water & Sanitation',
             code: 'WATER',
+            categoryId: 'Water',
             icon: Droplets,
             color: 'text-blue-600 bg-blue-50 border-blue-200',
             description:
@@ -40,6 +42,7 @@ export default function ServicesPage() {
         {
             title: 'Electricity & Power',
             code: 'ELEC',
+            categoryId: 'Electricity',
             icon: Zap,
             color: 'text-amber-600 bg-amber-50 border-amber-200',
             description:
@@ -50,6 +53,7 @@ export default function ServicesPage() {
         {
             title: 'Waste Management',
             code: 'WASTE',
+            categoryId: 'Waste',
             icon: Trash2,
             color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
             description:
@@ -60,6 +64,7 @@ export default function ServicesPage() {
         {
             title: 'Public Safety',
             code: 'SAFE',
+            categoryId: 'Public Safety',
             icon: Shield,
             color: 'text-rose-600 bg-rose-50 border-rose-200',
             description:
@@ -70,6 +75,7 @@ export default function ServicesPage() {
         {
             title: 'Parks & Recreation',
             code: 'PARK',
+            categoryId: 'Parks',
             icon: Trees,
             color: 'text-indigo-600 bg-indigo-50 border-indigo-200',
             description:
@@ -143,7 +149,7 @@ export default function ServicesPage() {
                                 </div>
 
                                 <Link
-                                    href={`/complaints/new?category=${encodeURIComponent(s.title.split(' ')[0])}`}
+                                    href={`/complaints/new?category=${encodeURIComponent(s.categoryId)}`}
                                     className="btn-primary text-xs px-3.5 py-1.5"
                                 >
                                     <span>Report</span>
