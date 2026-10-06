@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     ArrowLeft,
     Mail,
@@ -24,284 +25,180 @@ import {
     Shield,
     AlertCircle,
     RotateCcw,
+    RefreshCw,
+    Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ContactInquiry, ContactCheckedStatus } from '@/types';
 import { formatDate } from '@/lib/utils';
-
-const initialContactData: ContactInquiry[] = [
-    {
-        id: 'cnt-201',
-        name: 'Robert Jenkins',
-        email: 'robert.j@example.com',
-        phone: '+1 (555) 234-5678',
-        subject: 'Commercial Waste Disposal Permits Inquiry',
-        message:
-            'Hello City Desk, our business downtown is expanding and we require clarification on hazardous and bulk electronic waste disposal permits under the 2026 city bylaws. Could someone schedule a quick consultation?',
-        createdAt: '2026-10-06T15:30:00Z',
-        status: 'CHECKED_BY_ME',
-        checkedByAdminName: 'You (Current Admin)',
-        checkedByAdminEmail: 'admin@citycare.com',
-        checkedAt: '2026-10-06T15:45:00Z',
-    },
-    {
-        id: 'cnt-202',
-        name: 'Maria Gonzalez',
-        email: 'maria.g@example.com',
-        phone: '+1 (555) 876-5432',
-        subject: 'Community Garden Water Connection Request',
-        message:
-            'We are setting up a non-profit community garden on 14th street vacant lot. We would like to know the procedure to connect to municipal non-potable water mains for irrigation.',
-        createdAt: '2026-10-06T13:10:00Z',
-        status: 'CHECKED_BY_OTHER',
-        checkedByAdminName: 'Sarah Davis (Admin)',
-        checkedByAdminEmail: 'sarah.davis@citycare.com',
-        checkedAt: '2026-10-06T14:00:00Z',
-    },
-    {
-        id: 'cnt-203',
-        name: 'Arthur Pendelton',
-        email: 'arthur.p@example.com',
-        phone: '+1 (555) 345-9876',
-        subject: 'Streetlight Timing Synchronization on West End',
-        message:
-            'The traffic signals and pedestrian crosswalk countdown on West End Blvd appear to be desynchronized during peak school morning hours (7:30 - 8:30 AM), creating dangerous crossings for children.',
-        createdAt: '2026-10-06T16:05:00Z',
-        status: 'UNCHECKED',
-    },
-    {
-        id: 'cnt-204',
-        name: 'Samantha Lee',
-        email: 'samantha.lee@example.com',
-        phone: '+1 (555) 901-2345',
-        subject: 'Noise Complaint & Construction Hours Violation',
-        message:
-            'A private construction site on 8th Avenue has been operating heavy drilling machinery before 6:30 AM on weekends. Is there an ordinance enforcement officer available to inspect?',
-        createdAt: '2026-10-06T10:20:00Z',
-        status: 'CHECKED_BY_OTHER',
-        checkedByAdminName: 'Marcus Wright (Admin)',
-        checkedByAdminEmail: 'marcus.w@citycare.com',
-        checkedAt: '2026-10-06T11:00:00Z',
-        isReplied: true,
-        replyMessage: 'Inquiry forwarded to the Code Enforcement Bureau. Ticket #CEB-4819 created.',
-        repliedAt: '2026-10-06T11:15:00Z',
-    },
-    {
-        id: 'cnt-205',
-        name: 'David K. Nelson',
-        email: 'david.nelson@example.com',
-        phone: '+1 (555) 456-7890',
-        subject: 'Emergency Siren Test Schedule Notice',
-        message:
-            'When is the next scheduled annual test for the municipal emergency weather alert siren system? We need to inform our residential complex residents.',
-        createdAt: '2026-10-05T18:40:00Z',
-        status: 'UNCHECKED',
-    },
-];
+import { api } from '@/lib/api';
 
 export default function AdminContactPage() {
-    const [contacts, setContacts] = useState<ContactInquiry[]>(initialContactData);
+    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<'ALL' | ContactCheckedStatus | 'REPLIED'>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedContact, setSelectedContact] = useState<ContactInquiry | null>(null);
     const [replyText, setReplyText] = useState('');
     const [isReplying, setIsReplying] = useState(false);
 
+    // Fetch live contact inquiries from backend
+    const {
+        data: contactData,
+        isLoading,
+        isError,
+        refetch,
+        isFetching,
+    } = useQuery({
+        queryKey: ['admin-contacts', activeTab, searchQuery],
+        queryFn: async () => {
+            const res = await api.getAdminContacts({
+                status: activeTab === 'ALL' ? undefined : activeTab,
+                search: searchQuery.trim() || undefined,
+                limit: 100,
+            });
+            return res.data;
+        },
+    });
+
+    const contacts: ContactInquiry[] = contactData?.items || [];
+    const counts = contactData?.meta?.counts || {
+        totalAll: 0,
+        uncheckedCount: 0,
+        checkedByMeCount: 0,
+        checkedByOtherCount: 0,
+        repliedCount: 0,
+    };
+
+    // Mark as checked by current admin (#5257e3) on open
+    const markCheckedMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await api.markContactChecked(id);
+            if (!res.success) throw new Error(res.message || 'Failed to mark as checked');
+            return res.data;
+        },
+        onSuccess: (updated) => {
+            queryClient.invalidateQueries({ queryKey: ['admin-contacts'] });
+            if (selectedContact && selectedContact.id === updated.id) {
+                setSelectedContact(updated);
+            }
+        },
+    });
+
+    // Manual status toggle
+    const statusMutation = useMutation({
+        mutationFn: async ({
+            id,
+            status,
+        }: {
+            id: string;
+            status: 'UNCHECKED' | 'CHECKED_BY_ME' | 'CHECKED_BY_OTHER';
+        }) => {
+            const res = await api.updateContactStatus(id, status);
+            if (!res.success) throw new Error(res.message || 'Failed to update status');
+            return res.data;
+        },
+        onSuccess: (updated, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['admin-contacts'] });
+            if (selectedContact && selectedContact.id === updated.id) {
+                setSelectedContact(updated);
+            }
+            if (variables.status === 'CHECKED_BY_ME') {
+                toast.info('Status updated: Checked by You', {
+                    description: 'Background color set to #5257e3.',
+                });
+            } else if (variables.status === 'CHECKED_BY_OTHER') {
+                toast.info('Status updated: Checked by Another Admin', {
+                    description: 'Background color set to #d9933f.',
+                });
+            } else {
+                toast.info('Status reset to Unread / Unchecked');
+            }
+        },
+        onError: (err: any) => {
+            toast.error(err.message || 'Failed to update status');
+        },
+    });
+
+    // Send reply
+    const replyMutation = useMutation({
+        mutationFn: async ({ id, replyMessage }: { id: string; replyMessage: string }) => {
+            const res = await api.replyContactInquiry(id, replyMessage);
+            if (!res.success) throw new Error(res.message || 'Failed to send reply');
+            return res.data;
+        },
+        onSuccess: (updated) => {
+            queryClient.invalidateQueries({ queryKey: ['admin-contacts'] });
+            if (selectedContact && selectedContact.id === updated.id) {
+                setSelectedContact(updated);
+            }
+            toast.success('Reply Sent to Citizen! ✉️', {
+                description: `Official municipal response recorded for ${selectedContact?.email}`,
+            });
+            setReplyText('');
+            setIsReplying(false);
+        },
+        onError: (err: any) => {
+            toast.error(err.message || 'Failed to send reply');
+        },
+    });
+
+    // Delete contact inquiry
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await api.deleteContactInquiry(id);
+            if (!res.success) throw new Error(res.message || 'Failed to delete inquiry');
+            return id;
+        },
+        onSuccess: (id) => {
+            queryClient.invalidateQueries({ queryKey: ['admin-contacts'] });
+            if (selectedContact?.id === id) {
+                setSelectedContact(null);
+            }
+            toast.info('Inquiry record archived and deleted.');
+        },
+        onError: (err: any) => {
+            toast.error(err.message || 'Error deleting inquiry');
+        },
+    });
+
     // Open & Auto-Check contact as current admin (#5257e3)
     const handleOpenContact = (item: ContactInquiry) => {
-        // If uncheck or already checked, opening automatically marks as checked by current admin
-        const updatedItem: ContactInquiry = {
-            ...item,
-            status: item.status === 'CHECKED_BY_OTHER' ? item.status : 'CHECKED_BY_ME',
-            checkedByAdminName:
-                item.status === 'CHECKED_BY_OTHER'
-                    ? item.checkedByAdminName
-                    : 'You (Current Admin)',
-            checkedByAdminEmail:
-                item.status === 'CHECKED_BY_OTHER'
-                    ? item.checkedByAdminEmail
-                    : 'admin@citycare.com',
-            checkedAt: item.checkedAt || new Date().toISOString(),
-        };
-
-        // Update in state if status was UNCHECKED
+        setSelectedContact(item);
         if (item.status === 'UNCHECKED') {
-            setContacts((prev) =>
-                prev.map((c) => (c.id === item.id ? { ...updatedItem, status: 'CHECKED_BY_ME' } : c))
-            );
+            markCheckedMutation.mutate(item.id);
             toast.success('Inquiry Opened! 📬', {
                 description: 'Marked as checked by you (#5257e3 background applied).',
             });
         }
-
-        setSelectedContact(updatedItem);
     };
 
-    // Manual status switches for testing & demo purposes
     const handleMarkAsCheckedByMe = (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setContacts((prev) =>
-            prev.map((c) =>
-                c.id === id
-                    ? {
-                          ...c,
-                          status: 'CHECKED_BY_ME',
-                          checkedByAdminName: 'You (Current Admin)',
-                          checkedByAdminEmail: 'admin@citycare.com',
-                          checkedAt: new Date().toISOString(),
-                      }
-                    : c
-            )
-        );
-        if (selectedContact && selectedContact.id === id) {
-            setSelectedContact((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          status: 'CHECKED_BY_ME',
-                          checkedByAdminName: 'You (Current Admin)',
-                          checkedByAdminEmail: 'admin@citycare.com',
-                          checkedAt: new Date().toISOString(),
-                      }
-                    : null
-            );
-        }
-        toast.info('Status updated: Checked by You', {
-            description: 'Background color set to #5257e3.',
-        });
+        statusMutation.mutate({ id, status: 'CHECKED_BY_ME' });
     };
 
     const handleMarkAsCheckedByOther = (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setContacts((prev) =>
-            prev.map((c) =>
-                c.id === id
-                    ? {
-                          ...c,
-                          status: 'CHECKED_BY_OTHER',
-                          checkedByAdminName: 'Sarah Davis (Admin)',
-                          checkedByAdminEmail: 'sarah.davis@citycare.com',
-                          checkedAt: new Date().toISOString(),
-                      }
-                    : c
-            )
-        );
-        if (selectedContact && selectedContact.id === id) {
-            setSelectedContact((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          status: 'CHECKED_BY_OTHER',
-                          checkedByAdminName: 'Sarah Davis (Admin)',
-                          checkedByAdminEmail: 'sarah.davis@citycare.com',
-                          checkedAt: new Date().toISOString(),
-                      }
-                    : null
-            );
-        }
-        toast.info('Status updated: Checked by Another Admin', {
-            description: 'Background color set to #d9933f.',
-        });
+        statusMutation.mutate({ id, status: 'CHECKED_BY_OTHER' });
     };
 
     const handleMarkAsUnchecked = (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setContacts((prev) =>
-            prev.map((c) =>
-                c.id === id
-                    ? {
-                          ...c,
-                          status: 'UNCHECKED',
-                          checkedByAdminName: undefined,
-                          checkedByAdminEmail: undefined,
-                          checkedAt: undefined,
-                      }
-                    : c
-            )
-        );
-        if (selectedContact && selectedContact.id === id) {
-            setSelectedContact((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          status: 'UNCHECKED',
-                          checkedByAdminName: undefined,
-                          checkedByAdminEmail: undefined,
-                          checkedAt: undefined,
-                      }
-                    : null
-            );
-        }
-        toast.info('Marked as Unread / Unchecked');
+        statusMutation.mutate({ id, status: 'UNCHECKED' });
     };
 
     const handleSendReply = (e: React.FormEvent) => {
         e.preventDefault();
         if (!replyText.trim() || !selectedContact) return;
-
-        setContacts((prev) =>
-            prev.map((c) =>
-                c.id === selectedContact.id
-                    ? {
-                          ...c,
-                          isReplied: true,
-                          replyMessage: replyText,
-                          repliedAt: new Date().toISOString(),
-                      }
-                    : c
-            )
-        );
-
-        setSelectedContact((prev) =>
-            prev
-                ? {
-                      ...prev,
-                      isReplied: true,
-                      replyMessage: replyText,
-                      repliedAt: new Date().toISOString(),
-                  }
-                : null
-        );
-
-        toast.success('Reply Sent to Citizen! ✉️', {
-            description: `Official municipal response dispatched to ${selectedContact.email}`,
-        });
-        setReplyText('');
-        setIsReplying(false);
+        replyMutation.mutate({ id: selectedContact.id, replyMessage: replyText.trim() });
     };
 
     const handleDelete = (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         if (confirm('Are you sure you want to remove this contact message record?')) {
-            setContacts((prev) => prev.filter((c) => c.id !== id));
-            if (selectedContact?.id === id) {
-                setSelectedContact(null);
-            }
-            toast.info('Inquiry record deleted.');
+            deleteMutation.mutate(id);
         }
     };
-
-    // Filter items
-    const filteredContacts = contacts.filter((item) => {
-        const matchesTab =
-            activeTab === 'ALL'
-                ? true
-                : activeTab === 'REPLIED'
-                ? item.isReplied
-                : item.status === activeTab;
-        const matchesSearch =
-            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.message.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesTab && matchesSearch;
-    });
-
-    // Counts
-    const totalCount = contacts.length;
-    const unreadCount = contacts.filter((c) => c.status === 'UNCHECKED').length;
-    const checkedByMeCount = contacts.filter((c) => c.status === 'CHECKED_BY_ME').length;
-    const checkedByOtherCount = contacts.filter((c) => c.status === 'CHECKED_BY_OTHER').length;
 
     return (
         <div className="container-custom py-8 sm:py-12 space-y-8">
@@ -316,6 +213,15 @@ export default function AdminContactPage() {
                 </Link>
 
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => refetch()}
+                        disabled={isFetching}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                        <span>Refresh</span>
+                    </button>
+
                     <Link
                         href="/contact"
                         target="_blank"
@@ -351,7 +257,7 @@ export default function AdminContactPage() {
                         <span className="text-xs font-semibold text-slate-500">Total Inquiries</span>
                         <Mail className="w-4 h-4 text-slate-600" />
                     </div>
-                    <div className="text-2xl font-black text-slate-900">{totalCount}</div>
+                    <div className="text-2xl font-black text-slate-900">{counts.totalAll}</div>
                     <p className="text-[11px] text-slate-400">All submissions</p>
                 </div>
 
@@ -363,7 +269,7 @@ export default function AdminContactPage() {
                         </span>
                         <Clock className="w-4 h-4 text-purple-600" />
                     </div>
-                    <div className="text-2xl font-black text-purple-900">{unreadCount}</div>
+                    <div className="text-2xl font-black text-purple-900">{counts.uncheckedCount}</div>
                     <p className="text-[11px] text-slate-500 font-medium">Unopened inquiries</p>
                 </div>
 
@@ -381,7 +287,7 @@ export default function AdminContactPage() {
                             #5257e3
                         </span>
                     </div>
-                    <div className="text-2xl font-black text-white">{checkedByMeCount}</div>
+                    <div className="text-2xl font-black text-white">{counts.checkedByMeCount}</div>
                     <p className="text-[11px] text-indigo-100 font-medium">
                         Inspected by your admin account
                     </p>
@@ -401,7 +307,7 @@ export default function AdminContactPage() {
                             #d9933f
                         </span>
                     </div>
-                    <div className="text-2xl font-black text-white">{checkedByOtherCount}</div>
+                    <div className="text-2xl font-black text-white">{counts.checkedByOtherCount}</div>
                     <p className="text-[11px] text-amber-100 font-medium">Handled by team admins</p>
                 </div>
             </div>
@@ -419,7 +325,7 @@ export default function AdminContactPage() {
                                     : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
-                            All ({totalCount})
+                            All ({counts.totalAll})
                         </button>
 
                         <button
@@ -430,12 +336,16 @@ export default function AdminContactPage() {
                                     : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
-                            Unread ({unreadCount})
+                            Unread ({counts.uncheckedCount})
                         </button>
 
                         <button
                             onClick={() => setActiveTab('CHECKED_BY_ME')}
-                            style={activeTab === 'CHECKED_BY_ME' ? { backgroundColor: '#5257e3', color: '#fff' } : {}}
+                            style={
+                                activeTab === 'CHECKED_BY_ME'
+                                    ? { backgroundColor: '#5257e3', color: '#fff' }
+                                    : {}
+                            }
                             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 flex items-center gap-1.5 ${
                                 activeTab === 'CHECKED_BY_ME'
                                     ? 'shadow-sm'
@@ -443,12 +353,16 @@ export default function AdminContactPage() {
                             }`}
                         >
                             <span className="w-2 h-2 rounded-full bg-[#5257e3]"></span>
-                            <span>Checked by Me ({checkedByMeCount})</span>
+                            <span>Checked by Me ({counts.checkedByMeCount})</span>
                         </button>
 
                         <button
                             onClick={() => setActiveTab('CHECKED_BY_OTHER')}
-                            style={activeTab === 'CHECKED_BY_OTHER' ? { backgroundColor: '#d9933f', color: '#fff' } : {}}
+                            style={
+                                activeTab === 'CHECKED_BY_OTHER'
+                                    ? { backgroundColor: '#d9933f', color: '#fff' }
+                                    : {}
+                            }
                             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 flex items-center gap-1.5 ${
                                 activeTab === 'CHECKED_BY_OTHER'
                                     ? 'shadow-sm'
@@ -456,7 +370,7 @@ export default function AdminContactPage() {
                             }`}
                         >
                             <span className="w-2 h-2 rounded-full bg-[#d9933f]"></span>
-                            <span>Checked by Others ({checkedByOtherCount})</span>
+                            <span>Checked by Others ({counts.checkedByOtherCount})</span>
                         </button>
                     </div>
 
@@ -506,201 +420,231 @@ export default function AdminContactPage() {
             {/* Contact Inquiries Table */}
             <div className="card overflow-hidden border-slate-200">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                            <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
-                                <th className="py-3.5 px-4">Sender & Contact</th>
-                                <th className="py-3.5 px-4">Subject & Message Preview</th>
-                                <th className="py-3.5 px-4">Received</th>
-                                <th className="py-3.5 px-4">Admin Inspection Status</th>
-                                <th className="py-3.5 px-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {filteredContacts.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="py-12 text-center text-slate-400">
-                                        No contact inquiries found matching your filters.
-                                    </td>
+                    {isLoading ? (
+                        <div className="py-16 flex flex-col items-center justify-center gap-3">
+                            <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+                            <p className="text-sm font-medium text-slate-600">
+                                Loading inquiries from database...
+                            </p>
+                        </div>
+                    ) : isError ? (
+                        <div className="py-12 text-center text-rose-600 space-y-2">
+                            <AlertCircle className="w-8 h-8 mx-auto text-rose-500" />
+                            <p className="font-bold text-sm">Failed to load contact inquiries</p>
+                            <button
+                                onClick={() => refetch()}
+                                className="btn-primary text-xs px-4 py-1.5"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    ) : (
+                        <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+                                    <th className="py-3.5 px-4">Sender & Contact</th>
+                                    <th className="py-3.5 px-4">Subject & Message Preview</th>
+                                    <th className="py-3.5 px-4">Received</th>
+                                    <th className="py-3.5 px-4">Admin Inspection Status</th>
+                                    <th className="py-3.5 px-4 text-right">Actions</th>
                                 </tr>
-                            ) : (
-                                filteredContacts.map((item) => {
-                                    // Row Styling logic based on user requirements:
-                                    // If checked by other admin -> #d9933f
-                                    // If checked by this admin -> #5257e3
-                                    const isCheckedByMe = item.status === 'CHECKED_BY_ME';
-                                    const isCheckedByOther = item.status === 'CHECKED_BY_OTHER';
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {contacts.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="py-12 text-center text-slate-400">
+                                            No contact inquiries found matching your filters.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    contacts.map((item) => {
+                                        const isCheckedByMe = item.status === 'CHECKED_BY_ME';
+                                        const isCheckedByOther = item.status === 'CHECKED_BY_OTHER';
 
-                                    let rowStyle = {};
-                                    let textColorClass = 'text-slate-700';
-                                    let subTextColorClass = 'text-slate-400';
-                                    let subjectColorClass = 'text-slate-900';
+                                        let rowStyle = {};
+                                        let textColorClass = 'text-slate-700';
+                                        let subTextColorClass = 'text-slate-400';
+                                        let subjectColorClass = 'text-slate-900';
 
-                                    if (isCheckedByMe) {
-                                        rowStyle = {
-                                            backgroundColor: '#5257e3',
-                                            color: '#ffffff',
-                                        };
-                                        textColorClass = 'text-white';
-                                        subTextColorClass = 'text-indigo-100';
-                                        subjectColorClass = 'text-white';
-                                    } else if (isCheckedByOther) {
-                                        rowStyle = {
-                                            backgroundColor: '#d9933f',
-                                            color: '#ffffff',
-                                        };
-                                        textColorClass = 'text-white';
-                                        subTextColorClass = 'text-amber-100';
-                                        subjectColorClass = 'text-white';
-                                    }
+                                        if (isCheckedByMe) {
+                                            rowStyle = {
+                                                backgroundColor: '#5257e3',
+                                                color: '#ffffff',
+                                            };
+                                            textColorClass = 'text-white';
+                                            subTextColorClass = 'text-indigo-100';
+                                            subjectColorClass = 'text-white';
+                                        } else if (isCheckedByOther) {
+                                            rowStyle = {
+                                                backgroundColor: '#d9933f',
+                                                color: '#ffffff',
+                                            };
+                                            textColorClass = 'text-white';
+                                            subTextColorClass = 'text-amber-100';
+                                            subjectColorClass = 'text-white';
+                                        }
 
-                                    return (
-                                        <tr
-                                            key={item.id}
-                                            onClick={() => handleOpenContact(item)}
-                                            style={rowStyle}
-                                            className={`transition cursor-pointer hover:brightness-95 ${
-                                                !isCheckedByMe && !isCheckedByOther
-                                                    ? 'bg-white hover:bg-slate-50'
-                                                    : ''
-                                            }`}
-                                        >
-                                            {/* Sender & Contact */}
-                                            <td className="py-4 px-4 font-medium">
-                                                <div className="flex items-center gap-3">
-                                                    <div
-                                                        className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                                                            isCheckedByMe || isCheckedByOther
-                                                                ? 'bg-white/20 text-white'
-                                                                : 'bg-purple-100 text-purple-800'
-                                                        }`}
-                                                    >
-                                                        {item.name.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className={`font-bold ${subjectColorClass}`}>
-                                                            {item.name}
-                                                        </p>
-                                                        <p className={`text-[11px] ${subTextColorClass}`}>
-                                                            {item.email}
-                                                        </p>
-                                                        {item.phone && (
-                                                            <p className={`text-[10px] ${subTextColorClass}`}>
-                                                                {item.phone}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-
-                                            {/* Subject & Preview */}
-                                            <td className="py-4 px-4 max-w-sm">
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`font-bold ${subjectColorClass}`}>
-                                                            {item.subject}
-                                                        </span>
-                                                        {item.isReplied && (
-                                                            <span
-                                                                className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                                                                    isCheckedByMe || isCheckedByOther
-                                                                        ? 'bg-white/25 text-white'
-                                                                        : 'bg-emerald-100 text-emerald-800'
-                                                                }`}
+                                        return (
+                                            <tr
+                                                key={item.id}
+                                                onClick={() => handleOpenContact(item)}
+                                                style={rowStyle}
+                                                className={`transition cursor-pointer hover:brightness-95 ${
+                                                    !isCheckedByMe && !isCheckedByOther
+                                                        ? 'bg-white hover:bg-slate-50'
+                                                        : ''
+                                                }`}
+                                            >
+                                                {/* Sender & Contact */}
+                                                <td className="py-4 px-4 font-medium">
+                                                    <div className="flex items-center gap-3">
+                                                        <div
+                                                            className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                                                                isCheckedByMe || isCheckedByOther
+                                                                    ? 'bg-white/20 text-white'
+                                                                    : 'bg-purple-100 text-purple-800'
+                                                            }`}
+                                                        >
+                                                            {item.name.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <p
+                                                                className={`font-bold ${subjectColorClass}`}
                                                             >
-                                                                Replied ✓
+                                                                {item.name}
+                                                            </p>
+                                                            <p
+                                                                className={`text-[11px] ${subTextColorClass}`}
+                                                            >
+                                                                {item.email}
+                                                            </p>
+                                                            {item.phone && (
+                                                                <p
+                                                                    className={`text-[10px] ${subTextColorClass}`}
+                                                                >
+                                                                    {item.phone}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Subject & Preview */}
+                                                <td className="py-4 px-4 max-w-sm">
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span
+                                                                className={`font-bold ${subjectColorClass}`}
+                                                            >
+                                                                {item.subject}
                                                             </span>
-                                                        )}
-                                                    </div>
-                                                    <p
-                                                        className={`text-xs line-clamp-2 leading-relaxed ${
-                                                            isCheckedByMe || isCheckedByOther
-                                                                ? 'text-white/90'
-                                                                : 'text-slate-500'
-                                                        }`}
-                                                    >
-                                                        {item.message}
-                                                    </p>
-                                                </div>
-                                            </td>
-
-                                            {/* Timestamp */}
-                                            <td className={`py-4 px-4 whitespace-nowrap text-xs ${subTextColorClass}`}>
-                                                {formatDate(item.createdAt)}
-                                            </td>
-
-                                            {/* Inspection Status */}
-                                            <td className="py-4 px-4">
-                                                {isCheckedByMe && (
-                                                    <div className="space-y-0.5">
-                                                        <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1 rounded-full bg-white text-[#5257e3] shadow-xs">
-                                                            <UserCheck className="w-3.5 h-3.5" />
-                                                            Checked by You
-                                                        </span>
-                                                        <p className="text-[10px] text-indigo-100 pl-1">
-                                                            {item.checkedAt && formatDate(item.checkedAt)}
+                                                            {item.isReplied && (
+                                                                <span
+                                                                    className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                                                        isCheckedByMe || isCheckedByOther
+                                                                            ? 'bg-white/25 text-white'
+                                                                            : 'bg-emerald-100 text-emerald-800'
+                                                                    }`}
+                                                                >
+                                                                    Replied ✓
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p
+                                                            className={`text-xs line-clamp-2 leading-relaxed ${
+                                                                isCheckedByMe || isCheckedByOther
+                                                                    ? 'text-white/90'
+                                                                    : 'text-slate-500'
+                                                            }`}
+                                                        >
+                                                            {item.message}
                                                         </p>
                                                     </div>
-                                                )}
+                                                </td>
 
-                                                {isCheckedByOther && (
-                                                    <div className="space-y-0.5">
-                                                        <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1 rounded-full bg-white text-[#d9933f] shadow-xs">
-                                                            <Users className="w-3.5 h-3.5" />
-                                                            {item.checkedByAdminName || 'Other Admin'}
+                                                {/* Timestamp */}
+                                                <td
+                                                    className={`py-4 px-4 whitespace-nowrap text-xs ${subTextColorClass}`}
+                                                >
+                                                    {formatDate(item.createdAt)}
+                                                </td>
+
+                                                {/* Inspection Status */}
+                                                <td className="py-4 px-4">
+                                                    {isCheckedByMe && (
+                                                        <div className="space-y-0.5">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1 rounded-full bg-white text-[#5257e3] shadow-xs">
+                                                                <UserCheck className="w-3.5 h-3.5" />
+                                                                Checked by You
+                                                            </span>
+                                                            <p className="text-[10px] text-indigo-100 pl-1">
+                                                                {item.checkedAt &&
+                                                                    formatDate(item.checkedAt)}
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    {isCheckedByOther && (
+                                                        <div className="space-y-0.5">
+                                                            <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1 rounded-full bg-white text-[#d9933f] shadow-xs">
+                                                                <Users className="w-3.5 h-3.5" />
+                                                                {item.checkedByAdminName ||
+                                                                    'Other Admin'}
+                                                            </span>
+                                                            <p className="text-[10px] text-amber-100 pl-1">
+                                                                {item.checkedAt &&
+                                                                    formatDate(item.checkedAt)}
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    {!isCheckedByMe && !isCheckedByOther && (
+                                                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-ping"></span>
+                                                            New / Unread
                                                         </span>
-                                                        <p className="text-[10px] text-amber-100 pl-1">
-                                                            {item.checkedAt && formatDate(item.checkedAt)}
-                                                        </p>
+                                                    )}
+                                                </td>
+
+                                                {/* Action Buttons */}
+                                                <td className="py-4 px-4 text-right whitespace-nowrap">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenContact(item);
+                                                            }}
+                                                            className={`p-1.5 rounded-lg transition ${
+                                                                isCheckedByMe || isCheckedByOther
+                                                                    ? 'text-white hover:bg-white/20'
+                                                                    : 'text-slate-500 hover:text-purple-700 hover:bg-purple-50'
+                                                            }`}
+                                                            title="Open & Inspect Message"
+                                                        >
+                                                            <Eye className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => handleDelete(item.id, e)}
+                                                            className={`p-1.5 rounded-lg transition ${
+                                                                isCheckedByMe || isCheckedByOther
+                                                                    ? 'text-white/80 hover:text-white hover:bg-white/20'
+                                                                    : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                                                            }`}
+                                                            title="Delete Inquiry"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
                                                     </div>
-                                                )}
-
-                                                {!isCheckedByMe && !isCheckedByOther && (
-                                                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-ping"></span>
-                                                        New / Unread
-                                                    </span>
-                                                )}
-                                            </td>
-
-                                            {/* Action Buttons */}
-                                            <td className="py-4 px-4 text-right whitespace-nowrap">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleOpenContact(item);
-                                                        }}
-                                                        className={`p-1.5 rounded-lg transition ${
-                                                            isCheckedByMe || isCheckedByOther
-                                                                ? 'text-white hover:bg-white/20'
-                                                                : 'text-slate-500 hover:text-purple-700 hover:bg-purple-50'
-                                                        }`}
-                                                        title="Open & Inspect Message"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => handleDelete(item.id, e)}
-                                                        className={`p-1.5 rounded-lg transition ${
-                                                            isCheckedByMe || isCheckedByOther
-                                                                ? 'text-white/80 hover:text-white hover:bg-white/20'
-                                                                : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-                                                        }`}
-                                                        title="Delete Inquiry"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
 
@@ -722,7 +666,7 @@ export default function AdminContactPage() {
                                                 : '#7b2cbf',
                                     }}
                                 >
-                                    {selectedContact.name.charAt(0)}
+                                    {selectedContact.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-base text-slate-900">
@@ -776,7 +720,9 @@ export default function AdminContactPage() {
                                         <>
                                             <Users className="w-4 h-4" />
                                             <span>
-                                                Checked by {selectedContact.checkedByAdminName || 'Other Admin'} (#d9933f)
+                                                Checked by{' '}
+                                                {selectedContact.checkedByAdminName || 'Other Admin'} (
+                                                #d9933f)
                                             </span>
                                         </>
                                     )}
@@ -789,26 +735,29 @@ export default function AdminContactPage() {
                                 </div>
                             </div>
 
-                            {/* Demo State Switchers */}
+                            {/* State Switchers */}
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 <button
                                     type="button"
+                                    disabled={statusMutation.isPending}
                                     onClick={() => handleMarkAsCheckedByMe(selectedContact.id)}
-                                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white text-[#5257e3] hover:bg-white/90 shadow-sm transition"
+                                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white text-[#5257e3] hover:bg-white/90 shadow-sm transition disabled:opacity-50"
                                 >
                                     Set #5257e3 (Me)
                                 </button>
                                 <button
                                     type="button"
+                                    disabled={statusMutation.isPending}
                                     onClick={() => handleMarkAsCheckedByOther(selectedContact.id)}
-                                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white text-[#d9933f] hover:bg-white/90 shadow-sm transition"
+                                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white text-[#d9933f] hover:bg-white/90 shadow-sm transition disabled:opacity-50"
                                 >
                                     Set #d9933f (Other)
                                 </button>
                                 <button
                                     type="button"
+                                    disabled={statusMutation.isPending}
                                     onClick={() => handleMarkAsUnchecked(selectedContact.id)}
-                                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-black/20 text-white hover:bg-black/30 transition"
+                                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-black/20 text-white hover:bg-black/30 transition disabled:opacity-50"
                                 >
                                     Reset
                                 </button>
@@ -845,7 +794,8 @@ export default function AdminContactPage() {
                                         Official Municipal Reply Sent
                                     </span>
                                     <span className="text-[11px] text-emerald-700">
-                                        {selectedContact.repliedAt && formatDate(selectedContact.repliedAt)}
+                                        {selectedContact.repliedAt &&
+                                            formatDate(selectedContact.repliedAt)}
                                     </span>
                                 </div>
                                 <p className="text-xs text-emerald-800 italic">
@@ -882,10 +832,15 @@ export default function AdminContactPage() {
                                         <div className="flex items-center gap-2">
                                             <button
                                                 type="submit"
-                                                className="btn-primary text-xs px-4 py-2"
+                                                disabled={replyMutation.isPending}
+                                                className="btn-primary text-xs px-4 py-2 disabled:opacity-50 inline-flex items-center gap-1.5"
                                             >
-                                                <Send className="w-3.5 h-3.5" />
-                                                <span>Send Reply Email</span>
+                                                {replyMutation.isPending ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                    <Send className="w-3.5 h-3.5" />
+                                                )}
+                                                <span>Send Reply</span>
                                             </button>
                                             <button
                                                 type="button"

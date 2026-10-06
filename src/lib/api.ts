@@ -470,6 +470,185 @@ class ApiClient {
             body: JSON.stringify({ reason }),
         });
     }
+
+    // ── Citizen Feedback & Moderation API ──
+    async submitCitizenFeedback(data: {
+        citizenName?: string;
+        citizenEmail?: string;
+        category?: string;
+        rating: number;
+        comment: string;
+        complaintId?: string;
+    }): Promise<ApiResponse<any>> {
+        return this.request<any>('/feedbacks', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async getPublicFeedbacks(params: {
+        category?: string;
+        rating?: number;
+    } = {}): Promise<
+        ApiResponse<{
+            items: any[];
+            total: number;
+            stats: {
+                totalApproved: number;
+                avgRating: number;
+                positivePercentage: number;
+            };
+        }>
+    > {
+        const searchParams = new URLSearchParams();
+        if (params.category && params.category !== 'ALL') {
+            searchParams.append('category', params.category);
+        }
+        if (params.rating !== undefined && !isNaN(params.rating)) {
+            searchParams.append('rating', String(params.rating));
+        }
+        const query = searchParams.toString();
+        return this.request<any>(`/feedbacks${query ? `?${query}` : ''}`);
+    }
+
+    async getAdminFeedbacks(params: {
+        status?: string;
+        search?: string;
+        page?: number;
+        limit?: number;
+    } = {}): Promise<
+        ApiResponse<{
+            items: any[];
+            meta: {
+                total: number;
+                page: number;
+                limit: number;
+                totalPages: number;
+                counts: {
+                    totalAll: number;
+                    pendingCount: number;
+                    approvedCount: number;
+                    rejectedCount: number;
+                };
+            };
+        }>
+    > {
+        const searchParams = new URLSearchParams();
+        if (params.status && params.status !== 'ALL') {
+            searchParams.append('status', params.status);
+        }
+        if (params.search) {
+            searchParams.append('search', params.search);
+        }
+        if (params.page) {
+            searchParams.append('page', String(params.page));
+        }
+        if (params.limit) {
+            searchParams.append('limit', String(params.limit));
+        }
+        const query = searchParams.toString();
+        return this.request<any>(`/feedbacks/admin${query ? `?${query}` : ''}`);
+    }
+
+    async updateFeedbackModerationStatus(
+        id: string,
+        status: 'APPROVED' | 'REJECTED' | 'PENDING'
+    ): Promise<ApiResponse<any>> {
+        return this.request<any>(`/feedbacks/${id}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        });
+    }
+
+    async deleteAdminFeedback(id: string): Promise<ApiResponse<any>> {
+        return this.request<any>(`/feedbacks/${id}`, {
+            method: 'DELETE',
+        });
+    }
+
+    // ── Citizen Contact Inquiries API ──
+    async submitContactInquiry(data: {
+        name: string;
+        email: string;
+        phone?: string;
+        subject: string;
+        message: string;
+    }): Promise<ApiResponse<any>> {
+        return this.request<any>('/contacts', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async getAdminContacts(params: {
+        status?: string;
+        search?: string;
+        page?: number;
+        limit?: number;
+    } = {}): Promise<
+        ApiResponse<{
+            items: any[];
+            meta: {
+                total: number;
+                page: number;
+                limit: number;
+                totalPages: number;
+                counts: {
+                    totalAll: number;
+                    uncheckedCount: number;
+                    checkedByMeCount: number;
+                    checkedByOtherCount: number;
+                    repliedCount: number;
+                };
+            };
+        }>
+    > {
+        const searchParams = new URLSearchParams();
+        if (params.status && params.status !== 'ALL') {
+            searchParams.append('status', params.status);
+        }
+        if (params.search) {
+            searchParams.append('search', params.search);
+        }
+        if (params.page) {
+            searchParams.append('page', String(params.page));
+        }
+        if (params.limit) {
+            searchParams.append('limit', String(params.limit));
+        }
+        const query = searchParams.toString();
+        return this.request<any>(`/contacts/admin${query ? `?${query}` : ''}`);
+    }
+
+    async markContactChecked(id: string): Promise<ApiResponse<any>> {
+        return this.request<any>(`/contacts/${id}/check`, {
+            method: 'PATCH',
+        });
+    }
+
+    async updateContactStatus(
+        id: string,
+        status: 'UNCHECKED' | 'CHECKED_BY_ME' | 'CHECKED_BY_OTHER'
+    ): Promise<ApiResponse<any>> {
+        return this.request<any>(`/contacts/${id}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        });
+    }
+
+    async replyContactInquiry(id: string, replyMessage: string): Promise<ApiResponse<any>> {
+        return this.request<any>(`/contacts/${id}/reply`, {
+            method: 'POST',
+            body: JSON.stringify({ replyMessage }),
+        });
+    }
+
+    async deleteContactInquiry(id: string): Promise<ApiResponse<any>> {
+        return this.request<any>(`/contacts/${id}`, {
+            method: 'DELETE',
+        });
+    }
 }
 
 export const api = new ApiClient(API_BASE_URL);
+

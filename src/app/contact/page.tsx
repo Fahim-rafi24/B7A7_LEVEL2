@@ -1,28 +1,81 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Phone, Mail, MapPin, Clock, Send, Sparkles, HelpCircle, ChevronDown, Shield, ArrowRight } from 'lucide-react';
+import {
+    Phone,
+    Mail,
+    MapPin,
+    Clock,
+    Send,
+    Sparkles,
+    HelpCircle,
+    ChevronDown,
+    Shield,
+    ArrowRight,
+    Loader2,
+    CheckCircle2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
+import { api } from '@/lib/api';
 
 export default function ContactPage() {
     const { user } = useAuth();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [subject, setSubject] = useState('');
     const [message, setMessage] = useState('');
     const [openFaq, setOpenFaq] = useState<number | null>(0);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    useEffect(() => {
+        if (user) {
+            if (user.name && !name) setName(user.name);
+            if (user.email && !email) setEmail(user.email);
+            if (user.phone && !phone) setPhone(user.phone);
+        }
+    }, [user]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        toast.success('Message Received! 📨', {
-            description: 'Our municipal support desk will respond within 24 hours.',
-        });
-        setName('');
-        setEmail('');
-        setSubject('');
-        setMessage('');
+        if (!name.trim() || !email.trim() || !subject.trim() || !message.trim()) {
+            toast.error('Please fill in all required fields');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const res = await api.submitContactInquiry({
+                name: name.trim(),
+                email: email.trim(),
+                phone: phone.trim() || undefined,
+                subject: subject.trim(),
+                message: message.trim(),
+            });
+
+            if (res.success) {
+                setSubmittedSuccess(true);
+                toast.success('Inquiry Submitted! 📨', {
+                    description: 'Our municipal support desk will respond within 24 hours.',
+                });
+                setName(user?.name || '');
+                setEmail(user?.email || '');
+                setPhone(user?.phone || '');
+                setSubject('');
+                setMessage('');
+            } else {
+                toast.error(res.message || 'Failed to submit inquiry');
+            }
+        } catch (err: any) {
+            toast.error('Submission Failed', {
+                description: err.message || 'Please check your connection and try again.',
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const faqs = [
@@ -138,10 +191,26 @@ export default function ContactPage() {
                             </p>
                         </div>
 
+                        {submittedSuccess && (
+                            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 text-xs text-emerald-800">
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                                    <span>Thank you! Your message was saved and received by municipal administrators.</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setSubmittedSuccess(false)}
+                                    className="text-xs font-bold text-emerald-700 hover:underline shrink-0"
+                                >
+                                    Send another
+                                </button>
+                            </div>
+                        )}
+
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="form-label">Your Name</label>
+                                    <label className="form-label">Your Name *</label>
                                     <input
                                         type="text"
                                         value={name}
@@ -152,7 +221,7 @@ export default function ContactPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="form-label">Email Address</label>
+                                    <label className="form-label">Email Address *</label>
                                     <input
                                         type="email"
                                         value={email}
@@ -164,20 +233,32 @@ export default function ContactPage() {
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="form-label">Subject</label>
-                                <input
-                                    type="text"
-                                    value={subject}
-                                    onChange={(e) => setSubject(e.target.value)}
-                                    placeholder="e.g. Question regarding commercial waste regulations"
-                                    required
-                                    className="form-input text-xs sm:text-sm"
-                                />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="form-label">Phone (Optional)</label>
+                                    <input
+                                        type="tel"
+                                        value={phone}
+                                        onChange={(e) => setPhone(e.target.value)}
+                                        placeholder="+1 (555) 000-0000"
+                                        className="form-input text-xs sm:text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="form-label">Subject *</label>
+                                    <input
+                                        type="text"
+                                        value={subject}
+                                        onChange={(e) => setSubject(e.target.value)}
+                                        placeholder="e.g. Question regarding commercial waste regulations"
+                                        required
+                                        className="form-input text-xs sm:text-sm"
+                                    />
+                                </div>
                             </div>
 
                             <div>
-                                <label className="form-label">Message Details</label>
+                                <label className="form-label">Message Details *</label>
                                 <textarea
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
@@ -188,9 +269,22 @@ export default function ContactPage() {
                                 ></textarea>
                             </div>
 
-                            <button type="submit" className="btn-primary text-xs sm:text-sm px-6 py-3">
-                                <Send className="w-4 h-4" />
-                                <span>Send Message</span>
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="btn-primary text-xs sm:text-sm px-6 py-3 disabled:opacity-50 inline-flex items-center gap-2"
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span>Submitting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="w-4 h-4" />
+                                        <span>Send Message</span>
+                                    </>
+                                )}
                             </button>
                         </form>
                     </div>
@@ -217,8 +311,9 @@ export default function ContactPage() {
                             >
                                 <span>{faq.q}</span>
                                 <ChevronDown
-                                    className={`w-4 h-4 text-slate-400 transition-transform ${openFaq === idx ? 'rotate-180 text-purple-600' : ''
-                                        }`}
+                                    className={`w-4 h-4 text-slate-400 transition-transform ${
+                                        openFaq === idx ? 'rotate-180 text-purple-600' : ''
+                                    }`}
                                 />
                             </button>
                             {openFaq === idx && (

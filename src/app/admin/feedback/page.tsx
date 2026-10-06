@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     ArrowLeft,
     Shield,
@@ -21,193 +22,117 @@ import {
     Check,
     X,
     ThumbsUp,
+    RefreshCw,
+    Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { CitizenFeedbackItem, FeedbackModerationStatus } from '@/types';
+import { FeedbackModerationStatus } from '@/types';
 import { formatDate } from '@/lib/utils';
-
-const initialFeedbackData: CitizenFeedbackItem[] = [
-    {
-        id: 'fb-101',
-        citizenName: 'Michael Chang',
-        citizenEmail: 'm.chang@example.com',
-        rating: 5,
-        comment:
-            'The road crew fixed the large pothole on Elm Street in less than 48 hours after I submitted the report. The progress tracker with photo updates was super reassuring!',
-        category: 'Road & Transport',
-        complaintTrackingNumber: 'CP-2026-0812',
-        status: 'PENDING',
-        submittedAt: '2026-10-06T14:20:00Z',
-    },
-    {
-        id: 'fb-102',
-        citizenName: 'Elena Rostova',
-        citizenEmail: 'elena.r@example.com',
-        rating: 4,
-        comment:
-            'Streetlight outage on 5th Ave was replaced promptly. Good communication from the electrical division, though notification email came slightly late.',
-        category: 'Electricity & Power',
-        complaintTrackingNumber: 'CP-2026-0794',
-        status: 'PENDING',
-        submittedAt: '2026-10-06T11:45:00Z',
-    },
-    {
-        id: 'fb-103',
-        citizenName: 'David Miller',
-        citizenEmail: 'david.m@example.com',
-        rating: 5,
-        comment:
-            'CityCare has transformed how our neighborhood handles sanitation issues. Missed waste pickup was resolved the very next morning.',
-        category: 'Waste Management',
-        complaintTrackingNumber: 'CP-2026-0771',
-        status: 'APPROVED',
-        submittedAt: '2026-10-05T09:15:00Z',
-        moderatedAt: '2026-10-05T10:00:00Z',
-        moderatedBy: 'Admin (You)',
-        isFeatured: true,
-    },
-    {
-        id: 'fb-104',
-        citizenName: 'Sophia Patel',
-        citizenEmail: 'sophia.p@example.com',
-        rating: 5,
-        comment:
-            'Water pipe leakage near Central Park playground was sealed before morning commute. Impressed by the field team speed!',
-        category: 'Water & Sewage',
-        complaintTrackingNumber: 'CP-2026-0750',
-        status: 'APPROVED',
-        submittedAt: '2026-10-04T16:30:00Z',
-        moderatedAt: '2026-10-04T17:10:00Z',
-        moderatedBy: 'Sarah Davis (Admin)',
-    },
-    {
-        id: 'fb-105',
-        citizenName: 'Anonymous User',
-        citizenEmail: 'spam123@fake.net',
-        rating: 1,
-        comment:
-            'Spam comment with random text and promotional link to external scam service. Click here for crypto prizes.',
-        category: 'General City Feedback',
-        status: 'REJECTED',
-        submittedAt: '2026-10-03T20:10:00Z',
-        moderatedAt: '2026-10-04T08:00:00Z',
-        moderatedBy: 'Admin (You)',
-    },
-    {
-        id: 'fb-106',
-        citizenName: 'Marcus Vance',
-        citizenEmail: 'marcus.v@example.com',
-        rating: 4,
-        comment:
-            'Overgrown branches blocking the pedestrian traffic sign on Maple Boulevard were trimmed back neatly. Great civic response.',
-        category: 'Parks & Environment',
-        complaintTrackingNumber: 'CP-2026-0733',
-        status: 'PENDING',
-        submittedAt: '2026-10-06T08:10:00Z',
-    },
-];
+import { api } from '@/lib/api';
 
 export default function AdminFeedbackPage() {
-    const [feedbacks, setFeedbacks] = useState<CitizenFeedbackItem[]>(initialFeedbackData);
+    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<'ALL' | FeedbackModerationStatus>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
     const [ratingFilter, setRatingFilter] = useState<string>('ALL');
-    const [selectedFeedback, setSelectedFeedback] = useState<CitizenFeedbackItem | null>(null);
+    const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null);
 
-    // Filter list
-    const filteredFeedbacks = feedbacks.filter((item) => {
-        const matchesTab = activeTab === 'ALL' || item.status === activeTab;
-        const matchesRating = ratingFilter === 'ALL' || item.rating === Number(ratingFilter);
-        const matchesSearch =
-            item.citizenName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.comment.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (item.complaintTrackingNumber &&
-                item.complaintTrackingNumber.toLowerCase().includes(searchQuery.toLowerCase()));
-        return matchesTab && matchesRating && matchesSearch;
+    // Fetch live feedback data from backend
+    const { data: feedbackData, isLoading, isError, refetch, isFetching } = useQuery({
+        queryKey: ['admin-feedbacks', activeTab, searchQuery],
+        queryFn: async () => {
+            const res = await api.getAdminFeedbacks({
+                status: activeTab === 'ALL' ? undefined : activeTab,
+                search: searchQuery.trim() || undefined,
+                limit: 100,
+            });
+            return res.data;
+        },
     });
 
-    // Stats
-    const totalCount = feedbacks.length;
-    const pendingCount = feedbacks.filter((f) => f.status === 'PENDING').length;
-    const approvedCount = feedbacks.filter((f) => f.status === 'APPROVED').length;
-    const rejectedCount = feedbacks.filter((f) => f.status === 'REJECTED').length;
-    const avgRating = (
-        feedbacks.reduce((acc, curr) => acc + curr.rating, 0) / (totalCount || 1)
-    ).toFixed(1);
+    const feedbacks = feedbackData?.items || [];
+    const counts = feedbackData?.meta?.counts || {
+        totalAll: 0,
+        pendingCount: 0,
+        approvedCount: 0,
+        rejectedCount: 0,
+    };
+
+    // Filter by rating locally if selected
+    const filteredFeedbacks = feedbacks.filter((item: any) => {
+        if (ratingFilter === 'ALL') return true;
+        return item.rating === Number(ratingFilter);
+    });
+
+    // Mutations for Approve / Reject / Delete
+    const statusMutation = useMutation({
+        mutationFn: async ({ id, status }: { id: string; status: 'APPROVED' | 'REJECTED' }) => {
+            const res = await api.updateFeedbackModerationStatus(id, status);
+            if (!res.success) throw new Error(res.message || 'Failed to update status');
+            return { id, status, res };
+        },
+        onSuccess: ({ status }) => {
+            queryClient.invalidateQueries({ queryKey: ['admin-feedbacks'] });
+            queryClient.invalidateQueries({ queryKey: ['public-feedbacks'] });
+            if (status === 'APPROVED') {
+                toast.success('Feedback Approved! ✅', {
+                    description: 'This citizen review is now live on the public /feedback page.',
+                });
+            } else {
+                toast.error('Feedback Rejected 🚫', {
+                    description: 'Comment is hidden from the public portal.',
+                });
+            }
+            if (selectedFeedback) {
+                setSelectedFeedback((prev: any) => (prev ? { ...prev, status } : null));
+            }
+        },
+        onError: (err: any) => {
+            toast.error(err.message || 'Error updating feedback status');
+        },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await api.deleteAdminFeedback(id);
+            if (!res.success) throw new Error(res.message || 'Failed to delete');
+            return id;
+        },
+        onSuccess: (id) => {
+            queryClient.invalidateQueries({ queryKey: ['admin-feedbacks'] });
+            queryClient.invalidateQueries({ queryKey: ['public-feedbacks'] });
+            if (selectedFeedback?.id === id) {
+                setSelectedFeedback(null);
+            }
+            toast.info('Feedback record permanently archived and deleted.');
+        },
+        onError: (err: any) => {
+            toast.error(err.message || 'Error deleting feedback');
+        },
+    });
 
     const handleApprove = (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setFeedbacks((prev) =>
-            prev.map((item) =>
-                item.id === id
-                    ? {
-                          ...item,
-                          status: 'APPROVED',
-                          moderatedAt: new Date().toISOString(),
-                          moderatedBy: 'Admin (You)',
-                      }
-                    : item
-            )
-        );
-        if (selectedFeedback && selectedFeedback.id === id) {
-            setSelectedFeedback((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          status: 'APPROVED',
-                          moderatedAt: new Date().toISOString(),
-                          moderatedBy: 'Admin (You)',
-                      }
-                    : null
-            );
-        }
-        toast.success('Feedback Approved! ✅', {
-            description: 'This citizen review is now live on the public /feedback page.',
-        });
+        statusMutation.mutate({ id, status: 'APPROVED' });
     };
 
     const handleReject = (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setFeedbacks((prev) =>
-            prev.map((item) =>
-                item.id === id
-                    ? {
-                          ...item,
-                          status: 'REJECTED',
-                          moderatedAt: new Date().toISOString(),
-                          moderatedBy: 'Admin (You)',
-                      }
-                    : item
-            )
-        );
-        if (selectedFeedback && selectedFeedback.id === id) {
-            setSelectedFeedback((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          status: 'REJECTED',
-                          moderatedAt: new Date().toISOString(),
-                          moderatedBy: 'Admin (You)',
-                      }
-                    : null
-            );
-        }
-        toast.error('Feedback Rejected 🚫', {
-            description: 'Comment will remain hidden from the public portal.',
-        });
+        statusMutation.mutate({ id, status: 'REJECTED' });
     };
 
     const handleDelete = (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         if (confirm('Are you sure you want to delete this feedback record permanently?')) {
-            setFeedbacks((prev) => prev.filter((item) => item.id !== id));
-            if (selectedFeedback?.id === id) {
-                setSelectedFeedback(null);
-            }
-            toast.info('Feedback record deleted.');
+            deleteMutation.mutate(id);
         }
     };
+
+    // Calculate dynamic average satisfaction
+    const avgRating =
+        feedbacks.length > 0
+            ? (feedbacks.reduce((acc: number, curr: any) => acc + (curr.rating || 5), 0) / feedbacks.length).toFixed(1)
+            : '5.0';
 
     return (
         <div className="container-custom py-8 sm:py-12 space-y-8">
@@ -222,6 +147,15 @@ export default function AdminFeedbackPage() {
                 </Link>
 
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => refetch()}
+                        disabled={isFetching}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                        <span>Refresh</span>
+                    </button>
+
                     <Link
                         href="/feedback"
                         target="_blank"
@@ -257,7 +191,7 @@ export default function AdminFeedbackPage() {
                         <span className="text-xs font-semibold text-slate-500">Total Reviews</span>
                         <MessageSquare className="w-4 h-4 text-purple-600" />
                     </div>
-                    <div className="text-2xl font-black text-slate-900">{totalCount}</div>
+                    <div className="text-2xl font-black text-slate-900">{counts.totalAll}</div>
                     <p className="text-[11px] text-slate-400">All submissions received</p>
                 </div>
 
@@ -269,7 +203,7 @@ export default function AdminFeedbackPage() {
                         </span>
                         <Clock className="w-4 h-4 text-amber-600" />
                     </div>
-                    <div className="text-2xl font-black text-amber-900">{pendingCount}</div>
+                    <div className="text-2xl font-black text-amber-900">{counts.pendingCount}</div>
                     <p className="text-[11px] text-amber-700 font-medium">Awaiting admin review</p>
                 </div>
 
@@ -278,7 +212,7 @@ export default function AdminFeedbackPage() {
                         <span className="text-xs font-bold text-emerald-900">Approved & Live</span>
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     </div>
-                    <div className="text-2xl font-black text-emerald-900">{approvedCount}</div>
+                    <div className="text-2xl font-black text-emerald-900">{counts.approvedCount}</div>
                     <p className="text-[11px] text-emerald-700 font-medium">Visible to all public</p>
                 </div>
 
@@ -305,7 +239,7 @@ export default function AdminFeedbackPage() {
                                     : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
-                            All ({totalCount})
+                            All ({counts.totalAll})
                         </button>
                         <button
                             onClick={() => setActiveTab('PENDING')}
@@ -316,9 +250,9 @@ export default function AdminFeedbackPage() {
                             }`}
                         >
                             <span>Pending Approval</span>
-                            {pendingCount > 0 && (
+                            {counts.pendingCount > 0 && (
                                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white font-bold">
-                                    {pendingCount}
+                                    {counts.pendingCount}
                                 </span>
                             )}
                         </button>
@@ -330,7 +264,7 @@ export default function AdminFeedbackPage() {
                                     : 'text-emerald-700 hover:bg-emerald-100/50'
                             }`}
                         >
-                            Approved & Public ({approvedCount})
+                            Approved & Public ({counts.approvedCount})
                         </button>
                         <button
                             onClick={() => setActiveTab('REJECTED')}
@@ -340,7 +274,7 @@ export default function AdminFeedbackPage() {
                                     : 'text-rose-700 hover:bg-rose-100/50'
                             }`}
                         >
-                            Rejected ({rejectedCount})
+                            Rejected ({counts.rejectedCount})
                         </button>
                     </div>
 
@@ -375,7 +309,21 @@ export default function AdminFeedbackPage() {
 
             {/* Feedback List Table / Cards */}
             <div className="space-y-4">
-                {filteredFeedbacks.length === 0 ? (
+                {isLoading ? (
+                    <div className="card p-12 text-center border border-slate-200 flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+                        <p className="text-sm font-medium text-slate-600">Loading citizen feedbacks from database...</p>
+                    </div>
+                ) : isError ? (
+                    <div className="card p-12 text-center border border-rose-200 bg-rose-50/30 space-y-3">
+                        <AlertCircle className="w-8 h-8 text-rose-600 mx-auto" />
+                        <h3 className="font-bold text-rose-900 text-base">Failed to Load Feedback</h3>
+                        <p className="text-xs text-rose-700">Please make sure the backend server is running and try again.</p>
+                        <button onClick={() => refetch()} className="btn-primary text-xs px-4 py-2">
+                            Retry
+                        </button>
+                    </div>
+                ) : filteredFeedbacks.length === 0 ? (
                     <div className="card p-12 text-center border-dashed border-2 border-slate-200 space-y-3">
                         <div className="w-12 h-12 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mx-auto">
                             <MessageSquare className="w-6 h-6" />
@@ -387,145 +335,153 @@ export default function AdminFeedbackPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 gap-4">
-                        {filteredFeedbacks.map((item) => (
-                            <div
-                                key={item.id}
-                                onClick={() => setSelectedFeedback(item)}
-                                className={`card p-5 sm:p-6 border transition cursor-pointer hover:shadow-md ${
-                                    item.status === 'PENDING'
-                                        ? 'border-amber-300 bg-amber-50/20'
-                                        : item.status === 'APPROVED'
-                                        ? 'border-slate-200 bg-white'
-                                        : 'border-rose-200 bg-rose-50/10 opacity-75'
-                                }`}
-                            >
-                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                                    {/* Citizen Profile & Meta */}
-                                    <div className="flex items-start gap-3.5">
-                                        <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-800 font-bold flex items-center justify-center text-sm shrink-0">
-                                            {item.citizenName.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <h4 className="font-bold text-sm text-slate-900">
-                                                    {item.citizenName}
-                                                </h4>
-                                                <span className="text-[11px] text-slate-400">
-                                                    {item.citizenEmail}
-                                                </span>
+                        {filteredFeedbacks.map((item: any) => {
+                            const trackingNum = item.complaint?.trackingNumber || item.complaintTrackingNumber;
+                            return (
+                                <div
+                                    key={item.id}
+                                    onClick={() => setSelectedFeedback(item)}
+                                    className={`card p-5 sm:p-6 border transition cursor-pointer hover:shadow-md ${
+                                        item.status === 'PENDING'
+                                            ? 'border-amber-300 bg-amber-50/20'
+                                            : item.status === 'APPROVED'
+                                            ? 'border-slate-200 bg-white'
+                                            : 'border-rose-200 bg-rose-50/10 opacity-75'
+                                    }`}
+                                >
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                        {/* Citizen Profile & Meta */}
+                                        <div className="flex items-start gap-3.5">
+                                            <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-800 font-bold flex items-center justify-center text-sm shrink-0">
+                                                {(item.citizenName || 'C').charAt(0).toUpperCase()}
                                             </div>
-
-                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                <div className="flex text-amber-400 text-xs">
-                                                    {'★'.repeat(item.rating)}
-                                                    {'☆'.repeat(5 - item.rating)}
+                                            <div>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h4 className="font-bold text-sm text-slate-900">
+                                                        {item.citizenName || 'Verified Citizen'}
+                                                    </h4>
+                                                    {item.citizenEmail && (
+                                                        <span className="text-[11px] text-slate-400">
+                                                            {item.citizenEmail}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <span className="text-slate-300">•</span>
-                                                <span className="text-[11px] font-medium bg-slate-100 px-2 py-0.5 rounded text-slate-600">
-                                                    {item.category}
-                                                </span>
-                                                {item.complaintTrackingNumber && (
-                                                    <span className="text-[11px] font-mono text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100">
-                                                        {item.complaintTrackingNumber}
+
+                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                    <div className="flex text-amber-400 text-xs">
+                                                        {'★'.repeat(item.rating || 5)}
+                                                        {'☆'.repeat(5 - (item.rating || 5))}
+                                                    </div>
+                                                    <span className="text-slate-300">•</span>
+                                                    <span className="text-[11px] font-medium bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                                                        {item.category || 'General City Feedback'}
                                                     </span>
-                                                )}
-                                                <span className="text-slate-300">•</span>
-                                                <span className="text-[11px] text-slate-400">
-                                                    {formatDate(item.submittedAt)}
-                                                </span>
+                                                    {trackingNum && (
+                                                        <span className="text-[11px] font-mono text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100">
+                                                            {trackingNum}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-slate-300">•</span>
+                                                    <span className="text-[11px] text-slate-400">
+                                                        {formatDate(item.createdAt || item.submittedAt)}
+                                                    </span>
+                                                </div>
                                             </div>
+                                        </div>
+
+                                        {/* Status Badge */}
+                                        <div className="shrink-0 flex items-center gap-2">
+                                            {item.status === 'PENDING' && (
+                                                <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                                    <Clock className="w-3 h-3" />
+                                                    Pending Review
+                                                </span>
+                                            )}
+                                            {item.status === 'APPROVED' && (
+                                                <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                                    <CheckCircle2 className="w-3 h-3" />
+                                                    Approved (Public Live)
+                                                </span>
+                                            )}
+                                            {item.status === 'REJECTED' && (
+                                                <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                                                    <XCircle className="w-3 h-3" />
+                                                    Rejected
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
-                                    {/* Status Badge */}
-                                    <div className="shrink-0 flex items-center gap-2">
-                                        {item.status === 'PENDING' && (
-                                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                                                <Clock className="w-3 h-3" />
-                                                Pending Review
-                                            </span>
-                                        )}
-                                        {item.status === 'APPROVED' && (
-                                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                                <CheckCircle2 className="w-3 h-3" />
-                                                Approved (Public Live)
-                                            </span>
-                                        )}
-                                        {item.status === 'REJECTED' && (
-                                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
-                                                <XCircle className="w-3 h-3" />
-                                                Rejected
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Review Content */}
-                                <div className="mt-3 pl-0 sm:pl-13.5">
-                                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50/80 p-3 rounded-xl border border-slate-100">
-                                        &ldquo;{item.comment}&rdquo;
-                                    </p>
-                                </div>
-
-                                {/* Bottom Moderation Action Controls */}
-                                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 pl-0 sm:pl-13.5">
-                                    <div className="text-[11px] text-slate-400">
-                                        {item.moderatedBy ? (
-                                            <span>
-                                                Moderated by <strong className="text-slate-700">{item.moderatedBy}</strong> on{' '}
-                                                {item.moderatedAt && formatDate(item.moderatedAt)}
-                                            </span>
-                                        ) : (
-                                            <span className="text-amber-600 font-medium">
-                                                Needs administrative decision to publish
-                                            </span>
-                                        )}
+                                    {/* Review Content */}
+                                    <div className="mt-3 pl-0 sm:pl-13.5">
+                                        <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                            &ldquo;{item.comment}&rdquo;
+                                        </p>
                                     </div>
 
-                                    <div className="flex items-center gap-2">
-                                        {item.status !== 'APPROVED' && (
+                                    {/* Bottom Moderation Action Controls */}
+                                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 pl-0 sm:pl-13.5">
+                                        <div className="text-[11px] text-slate-400">
+                                            {item.moderatedBy ? (
+                                                <span>
+                                                    Moderated by <strong className="text-slate-700">{item.moderatedBy}</strong> on{' '}
+                                                    {item.moderatedAt && formatDate(item.moderatedAt)}
+                                                </span>
+                                            ) : (
+                                                <span className="text-amber-600 font-medium">
+                                                    Needs administrative decision to publish
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {item.status !== 'APPROVED' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={statusMutation.isPending}
+                                                    onClick={(e) => handleApprove(item.id, e)}
+                                                    className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm disabled:opacity-50"
+                                                >
+                                                    <Check className="w-3.5 h-3.5" />
+                                                    <span>Approve & Publish</span>
+                                                </button>
+                                            )}
+                                            {item.status !== 'REJECTED' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={statusMutation.isPending}
+                                                    onClick={(e) => handleReject(item.id, e)}
+                                                    className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition disabled:opacity-50"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                    <span>Reject</span>
+                                                </button>
+                                            )}
                                             <button
                                                 type="button"
-                                                onClick={(e) => handleApprove(item.id, e)}
-                                                className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedFeedback(item);
+                                                }}
+                                                className="p-1.5 text-slate-400 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition"
+                                                title="View Details"
                                             >
-                                                <Check className="w-3.5 h-3.5" />
-                                                <span>Approve & Publish</span>
+                                                <Eye className="w-4 h-4" />
                                             </button>
-                                        )}
-                                        {item.status !== 'REJECTED' && (
                                             <button
                                                 type="button"
-                                                onClick={(e) => handleReject(item.id, e)}
-                                                className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition"
+                                                disabled={deleteMutation.isPending}
+                                                onClick={(e) => handleDelete(item.id, e)}
+                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition disabled:opacity-50"
+                                                title="Delete Record"
                                             >
-                                                <X className="w-3.5 h-3.5" />
-                                                <span>Reject</span>
+                                                <Trash2 className="w-4 h-4" />
                                             </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setSelectedFeedback(item);
-                                            }}
-                                            className="p-1.5 text-slate-400 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition"
-                                            title="View Details"
-                                        >
-                                            <Eye className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => handleDelete(item.id, e)}
-                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                                            title="Delete Record"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -537,13 +493,13 @@ export default function AdminFeedbackPage() {
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 font-bold text-lg flex items-center justify-center">
-                                    {selectedFeedback.citizenName.charAt(0)}
+                                    {(selectedFeedback.citizenName || 'C').charAt(0).toUpperCase()}
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-base text-slate-900">
-                                        {selectedFeedback.citizenName}
+                                        {selectedFeedback.citizenName || 'Verified Citizen'}
                                     </h3>
-                                    <p className="text-xs text-slate-500">{selectedFeedback.citizenEmail}</p>
+                                    <p className="text-xs text-slate-500">{selectedFeedback.citizenEmail || 'No email provided'}</p>
                                 </div>
                             </div>
                             <button
@@ -559,15 +515,15 @@ export default function AdminFeedbackPage() {
                                 <span className="text-slate-400 block text-[10px] font-semibold uppercase">
                                     Category
                                 </span>
-                                <span className="font-bold text-slate-800">{selectedFeedback.category}</span>
+                                <span className="font-bold text-slate-800">{selectedFeedback.category || 'General'}</span>
                             </div>
                             <div>
                                 <span className="text-slate-400 block text-[10px] font-semibold uppercase">
                                     Rating
                                 </span>
                                 <div className="flex text-amber-400 font-bold">
-                                    {'★'.repeat(selectedFeedback.rating)}
-                                    <span className="text-slate-700 ml-1">({selectedFeedback.rating}/5)</span>
+                                    {'★'.repeat(selectedFeedback.rating || 5)}
+                                    <span className="text-slate-700 ml-1">({selectedFeedback.rating || 5}/5)</span>
                                 </div>
                             </div>
                             <div>
@@ -575,7 +531,7 @@ export default function AdminFeedbackPage() {
                                     Complaint Track ID
                                 </span>
                                 <span className="font-mono text-purple-700 font-semibold">
-                                    {selectedFeedback.complaintTrackingNumber || 'N/A'}
+                                    {selectedFeedback.complaint?.trackingNumber || selectedFeedback.complaintTrackingNumber || 'N/A'}
                                 </span>
                             </div>
                             <div>
@@ -583,7 +539,7 @@ export default function AdminFeedbackPage() {
                                     Submitted Date
                                 </span>
                                 <span className="font-medium text-slate-700">
-                                    {formatDate(selectedFeedback.submittedAt)}
+                                    {formatDate(selectedFeedback.createdAt || selectedFeedback.submittedAt)}
                                 </span>
                             </div>
                         </div>
@@ -616,8 +572,9 @@ export default function AdminFeedbackPage() {
                             <div className="flex items-center gap-2">
                                 {selectedFeedback.status !== 'APPROVED' && (
                                     <button
+                                        disabled={statusMutation.isPending}
                                         onClick={() => handleApprove(selectedFeedback.id)}
-                                        className="btn-primary text-xs px-4 py-2"
+                                        className="btn-primary text-xs px-4 py-2 disabled:opacity-50"
                                     >
                                         <Check className="w-4 h-4" />
                                         <span>Approve for Public</span>
@@ -625,8 +582,9 @@ export default function AdminFeedbackPage() {
                                 )}
                                 {selectedFeedback.status !== 'REJECTED' && (
                                     <button
+                                        disabled={statusMutation.isPending}
                                         onClick={() => handleReject(selectedFeedback.id)}
-                                        className="px-4 py-2 rounded-full text-xs font-bold bg-rose-100 text-rose-700 hover:bg-rose-200 transition"
+                                        className="px-4 py-2 rounded-full text-xs font-bold bg-rose-100 text-rose-700 hover:bg-rose-200 transition disabled:opacity-50"
                                     >
                                         <X className="w-4 h-4" />
                                         <span>Reject / Hide</span>

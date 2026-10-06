@@ -109,17 +109,15 @@ export function Navbar() {
                     >
                         Services
                     </Link>
-                    {user?.role === 'ADMIN' && (
-                        <Link
-                            href="/analytics"
-                            className={`px-3.5 py-2 rounded-lg text-sm font-medium transition ${pathname === '/analytics'
-                                ? 'bg-purple-50 text-purple-800 font-semibold'
-                                : 'text-slate-700 hover:bg-slate-100'
-                                }`}
-                        >
-                            Analytics
-                        </Link>
-                    )}
+                    <Link
+                        href="/analytics"
+                        className={`px-3.5 py-2 rounded-lg text-sm font-medium transition ${pathname === '/analytics'
+                            ? 'bg-purple-50 text-purple-800 font-semibold'
+                            : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                    >
+                        Analytics
+                    </Link>
                     <Link
                         href="/pricing"
                         className={`px-3.5 py-2 rounded-lg text-sm font-medium transition ${pathname === '/pricing'
@@ -168,6 +166,13 @@ export function Navbar() {
                                 >
                                     <FileText className="w-4 h-4 text-blue-500" />
                                     <span>About & Mission</span>
+                                </Link>
+                                <Link
+                                    href="/analytics"
+                                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 rounded-xl hover:bg-purple-50 hover:text-purple-700 transition"
+                                >
+                                    <BarChart3 className="w-4 h-4 text-indigo-500" />
+                                    <span>Analytics & Open Data</span>
                                 </Link>
                                 <Link
                                     href="/contact"
@@ -376,14 +381,12 @@ export function Navbar() {
                         >
                             Municipal Services
                         </Link>
-                        {user?.role === 'ADMIN' && (
-                            <Link
-                                href="/analytics"
-                                className="px-3 py-2 text-sm font-medium text-slate-800 rounded-lg hover:bg-slate-100"
-                            >
-                                Analytics & Stats
-                            </Link>
-                        )}
+                        <Link
+                            href="/analytics"
+                            className="px-3 py-2 text-sm font-medium text-slate-800 rounded-lg hover:bg-slate-100"
+                        >
+                            Analytics & Open Data
+                        </Link>
                         <Link
                             href="/pricing"
                             className="px-3 py-2 text-sm font-medium text-slate-800 rounded-lg hover:bg-slate-100"
