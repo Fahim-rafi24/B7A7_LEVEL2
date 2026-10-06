@@ -16,31 +16,7 @@ export default function FeedbackPage() {
             comment:
                 'CityCare helped me report a hazardous pothole on Main Street that was fixed in just 3 days! The real-time timeline updates kept me informed every step of the way.',
             category: 'Road & Transport',
-        },
-        {
-            name: 'Jane Smith',
-            rating: 4,
-            time: '5 days ago',
-            comment:
-                'Great platform! Water leakage on Riverside Park was resolved promptly. The UI is very clean and easy to navigate on mobile.',
-            category: 'Water & Sanitation',
-        },
-        {
-            name: 'Robert Wilson',
-            rating: 5,
-            time: '1 week ago',
-            comment:
-                'The transparency is unbeatable. I received a notification when the field crew was dispatched and another when the streetlights were restored.',
-            category: 'Electricity & Power',
-        },
-        {
-            name: 'Emily Davis',
-            rating: 5,
-            time: '2 weeks ago',
-            comment:
-                'Used the Express Hazardous Waste removal service. Paid $25 via Stripe and the specialized cleanup crew arrived within 3 hours. Outstanding municipal service.',
-            category: 'Waste Management',
-        },
+        }
     ]);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -69,7 +45,7 @@ export default function FeedbackPage() {
     return (
         <div className="container-custom py-12 space-y-12">
             {/* Header */}
-            <div className="text-center max-w-2xl mx-auto space-y-3">
+            <div className="text-center max-w-2xl mx-auto space-y-3 mt-8">
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
                     <Sparkles className="w-3.5 h-3.5" />
                     Citizen Voices & Transparency
@@ -163,8 +139,8 @@ export default function FeedbackPage() {
                                         >
                                             <Star
                                                 className={`w-6 h-6 ${s <= rating
-                                                        ? 'text-amber-400 fill-amber-400'
-                                                        : 'text-slate-200'
+                                                    ? 'text-amber-400 fill-amber-400'
+                                                    : 'text-slate-200'
                                                     }`}
                                             />
                                         </button>

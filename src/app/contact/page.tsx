@@ -44,7 +44,7 @@ export default function ContactPage() {
     return (
         <div className="container-custom py-12 space-y-16">
             {/* Header */}
-            <div className="text-center max-w-2xl mx-auto space-y-3">
+            <div className="text-center max-w-2xl mx-auto space-y-3 mt-8">
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
                     <Sparkles className="w-3.5 h-3.5" />
                     24/7 Municipal Support
