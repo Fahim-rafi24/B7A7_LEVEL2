@@ -108,11 +108,12 @@ export default function ProfilePage() {
                     <div>
                         <label className="form-label">Full Name</label>
                         <div className="relative">
-                            <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+
                             <input
                                 type="text"
                                 {...register('name')}
                                 className="form-input pl-10 text-xs sm:text-sm"
+                                placeholder='user name'
                             />
                         </div>
                         {errors.name && <p className="form-error">{errors.name.message}</p>}
@@ -121,7 +122,7 @@ export default function ProfilePage() {
                     <div>
                         <label className="form-label">Email Address (Read-only)</label>
                         <div className="relative">
-                            <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+
                             <input
                                 type="email"
                                 value={user?.email || ''}
@@ -134,7 +135,7 @@ export default function ProfilePage() {
                     <div>
                         <label className="form-label">Notification Phone Number</label>
                         <div className="relative">
-                            <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+
                             <input
                                 type="tel"
                                 {...register('phone')}

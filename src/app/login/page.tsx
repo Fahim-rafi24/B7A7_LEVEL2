@@ -114,7 +114,7 @@ export default function LoginPage() {
                     </div>
 
                     {/* Google OAuth (GCP) Social Login */}
-                    <button
+                    {/* <button
                         type="button"
                         onClick={() => loginWithGoogle('CITIZEN')}
                         className="w-full flex items-center justify-center gap-3 py-2.5 px-4 mb-4 border border-slate-200 rounded-xl font-medium text-xs text-slate-700 bg-white hover:bg-slate-50 transition shadow-xs hover:border-purple-300"
@@ -138,7 +138,7 @@ export default function LoginPage() {
                             />
                         </svg>
                         <span>Continue with Google (GCP)</span>
-                    </button>
+                    </button> */}
 
                     <div className="flex items-center my-4">
                         <div className="flex-grow border-t border-slate-200"></div>
@@ -153,7 +153,7 @@ export default function LoginPage() {
                         <div>
                             <label className="form-label">Email Address</label>
                             <div className="relative">
-                                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                {/* <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" /> */}
                                 <input
                                     type="email"
                                     {...register('email')}
@@ -171,7 +171,7 @@ export default function LoginPage() {
                                 <label className="form-label mb-0">Password</label>
                             </div>
                             <div className="relative">
-                                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                {/* <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" /> */}
                                 <input
                                     type="password"
                                     {...register('password')}

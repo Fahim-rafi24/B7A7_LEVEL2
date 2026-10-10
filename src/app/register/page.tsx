@@ -62,15 +62,15 @@ export default function RegisterPage() {
                 <div className="card p-6 sm:p-8 shadow-xl border-slate-200">
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                         {/* Role selection tabs */}
-                        <div>
+                        <div className='hidden'>
                             <label className="form-label">I am joining as a</label>
                             <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1 rounded-xl">
                                 <button
                                     type="button"
                                     onClick={() => setValue('role', 'CITIZEN')}
                                     className={`py-2 text-xs font-bold rounded-lg transition ${currentRole === 'CITIZEN'
-                                            ? 'bg-white text-purple-700 shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-800'
+                                        ? 'bg-white text-purple-700 shadow-xs'
+                                        : 'text-slate-500 hover:text-slate-800'
                                         }`}
                                 >
                                     Citizen
@@ -79,8 +79,8 @@ export default function RegisterPage() {
                                     type="button"
                                     onClick={() => setValue('role', 'STAFF')}
                                     className={`py-2 text-xs font-bold rounded-lg transition ${currentRole === 'STAFF'
-                                            ? 'bg-white text-amber-700 shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-800'
+                                        ? 'bg-white text-amber-700 shadow-xs'
+                                        : 'text-slate-500 hover:text-slate-800'
                                         }`}
                                 >
                                     Staff
@@ -89,8 +89,8 @@ export default function RegisterPage() {
                                     type="button"
                                     onClick={() => setValue('role', 'ADMIN')}
                                     className={`py-2 text-xs font-bold rounded-lg transition ${currentRole === 'ADMIN'
-                                            ? 'bg-white text-purple-950 shadow-xs'
-                                            : 'text-slate-500 hover:text-slate-800'
+                                        ? 'bg-white text-purple-950 shadow-xs'
+                                        : 'text-slate-500 hover:text-slate-800'
                                         }`}
                                 >
                                     Admin
@@ -101,7 +101,7 @@ export default function RegisterPage() {
                         <div>
                             <label className="form-label">Full Name</label>
                             <div className="relative">
-                                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                {/* <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" /> */}
                                 <input
                                     type="text"
                                     {...register('name')}
@@ -115,7 +115,7 @@ export default function RegisterPage() {
                         <div>
                             <label className="form-label">Email Address</label>
                             <div className="relative">
-                                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                {/* <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" /> */}
                                 <input
                                     type="email"
                                     {...register('email')}
@@ -129,7 +129,7 @@ export default function RegisterPage() {
                         <div>
                             <label className="form-label">Phone Number (Optional)</label>
                             <div className="relative">
-                                <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                {/* <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" /> */}
                                 <input
                                     type="tel"
                                     {...register('phone')}
@@ -142,7 +142,7 @@ export default function RegisterPage() {
                         <div>
                             <label className="form-label">Password</label>
                             <div className="relative">
-                                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                {/* <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" /> */}
                                 <input
                                     type="password"
                                     {...register('password')}
