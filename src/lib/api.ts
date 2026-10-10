@@ -11,10 +11,10 @@ import {
 import Cookies from 'js-cookie';
 
 const API_BASE_URL =
-    process.env.NEXT_BASE_API_URL || 'http://localhost:5000/api/v1';
+    process.env.NEXT_BASE_API_URL || 'https://b7-a6-level-2-psi.vercel.app/api/v1';
 
 export const API_PUBLIC_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    process.env.NEXT_PUBLIC_API_URL || 'https://b7-a6-level-2-psi.vercel.app';
 
 export interface PaginatedData<T> {
     items: T[];
